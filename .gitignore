@@ -1,6 +1,11 @@
-venv/
 __pycache__/
-chroma_db
+
+venv/
+env/
+.langgraph_api/
+chroma_db/
+memory_data/
+
 
 
 .env
