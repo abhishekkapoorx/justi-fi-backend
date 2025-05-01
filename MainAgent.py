@@ -1,7 +1,8 @@
+import operator
 from langchain_groq import ChatGroq
 from langgraph.graph import StateGraph, START, END, MessagesState
 # from langgraph.checkpoint.memory import MemorySaver
-from typing import Annotated, List, TypedDict
+from typing import Annotated, Any, Dict, List, TypedDict
 from langgraph.types import Send
 from ChatSubGraph import build_chat_subgraph
 from InsightGeneratorGraph import build_insight_generator
@@ -21,6 +22,12 @@ class SuperGraphState(TypedDict):
     chat_results: Annotated[str, string_reducer]
     memory_summary: Annotated[str, string_reducer]
 
+
+    # insight graph states
+    summary: Annotated[str, string_reducer]
+    positives: Annotated[List[str], operator.add]
+    negatives: Annotated[List[Dict[str, Any]], operator.add]
+
 class InputState():
     input: Annotated[str, string_reducer]
     user_id: Annotated[str, string_reducer] = "uid"
@@ -29,6 +36,11 @@ class InputState():
 
 class OutputState():
     result: Annotated[str, string_reducer]
+    
+    # insight graph states
+    summary: Annotated[str, string_reducer]
+    positives: Annotated[List[str], operator.add]
+    negatives: Annotated[List[Dict[str, Any]], operator.add]
 
 class IntentResponse(BaseModel):
     """Response schema for intent classification."""
