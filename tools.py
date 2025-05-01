@@ -2,6 +2,7 @@ from lib.llm import llm
 from lib.VectorStore import VectorStore
 from lib.embeddings import embeddings_e5_large, embeddings_mpnet_base
 from lib.api_keys import pinecone_api_key_anshul, pinecone_api_key_madhav
+from typing import List
 
 law_store = VectorStore("law", embeddings_e5_large, pinecone_api_key_anshul).getVectorStore()
 preceeding_store = VectorStore("cases", embeddings_mpnet_base, pinecone_api_key_madhav).getVectorStore()
