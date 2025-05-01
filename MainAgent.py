@@ -3,6 +3,7 @@ from langgraph.graph import StateGraph, START, END, MessagesState
 # from langgraph.checkpoint.memory import MemorySaver
 from typing import Annotated, List, TypedDict
 from langgraph.types import Send
+from ChatSubGraph import build_chat_subgraph
 from lib.llm import llm
 from typing import List
 from pydantic import BaseModel, Field
@@ -19,6 +20,7 @@ class SuperGraphState(TypedDict):
     thread_id: str
     output_message: str
     intents: List[str]
+    chat_results: Annotated[str, string_reducer]
     memory_summary: Annotated[str, string_reducer]
 
 class InputState():
@@ -137,7 +139,7 @@ graph = StateGraph(SuperGraphState, input=InputState, output=OutputState)
 
 graph.add_node("memory_manager", build_memory_manager().compile())
 graph.add_node("intent_selector", intent_selector)
-graph.add_node("chat", chat)
+graph.add_node("chat", build_chat_subgraph().compile())
 graph.add_node("insight_generator", insight_generator)
 graph.add_node("notion_documentor", notion_documentor)
 graph.add_node("notion_scheduler", notion_scheduler)

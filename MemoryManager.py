@@ -12,13 +12,14 @@ from lib.VectorStore import VectorStore
 from lib.embeddings import embeddings
 from lib.llm import llm
 from langchain_core.documents import Document
+from lib.api_keys import pinecone_api_key
 
 dotenv.load_dotenv()
 
-long_term_db = VectorStore("long-term-db")
+long_term_db = VectorStore("long-term-db", embeddings, pinecone_api_key)
 long_term_db = long_term_db.getVectorStore()
 
-short_term_db = VectorStore("short-term-db")
+short_term_db = VectorStore("short-term-db", embeddings, pinecone_api_key)
 short_term_db = short_term_db.getVectorStore()
 
 

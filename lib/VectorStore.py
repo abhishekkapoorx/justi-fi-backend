@@ -4,19 +4,14 @@ import time
 from pinecone import Pinecone, ServerlessSpec
 from langchain_pinecone import PineconeVectorStore
 
-from lib.embeddings import embeddings
-
-if not os.getenv("PINECONE_API_KEY"):
-    os.environ["PINECONE_API_KEY"] = getpass.getpass("Enter your Pinecone API key: ")
-
-pinecone_api_key = os.environ.get("PINECONE_API_KEY")
-
-
 class VectorStore:
-    pc = Pinecone(api_key=pinecone_api_key)
 
-    def __init__(self, index_name, *args, **kwargs):
+
+    def __init__(self, index_name, embedding, api_key, *args, **kwargs):
         self.index_name = index_name  # change if desired
+        self.embedding = embedding
+        self.api_key = api_key
+        self.pc = Pinecone(api_key=api_key)
 
         existing_indexes = [index_info["name"] for index_info in self.pc.list_indexes()]
 
@@ -33,7 +28,7 @@ class VectorStore:
         self.index = self.pc.Index(index_name)
         print(f"Index: {index_name}")
 
-        self.vector_store = PineconeVectorStore(index=self.index, embedding=embeddings)
+        self.vector_store = PineconeVectorStore(index=self.index, embedding=self.embedding, pinecone_api_key=self.api_key)
 
     def __str__(self):
         return f"<Pinecone VectorStore - {self.index_name}>"
