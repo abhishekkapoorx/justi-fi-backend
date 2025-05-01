@@ -316,8 +316,8 @@ def persistence_writer(state: MemoryState) -> MemoryOutputState:
         # Get extraction from LLM
         try:
             llm_response = llm.with_structured_output(Response).invoke(system=system_message, user=user_message)
-            essential_content = llm_response.model_dump_json()
-            memories = essential_content["memories"]
+            essential_content = llm_response
+            memories = essential_content.memories
             
             # Add extraction metadata
             metadata["content_type"] = "essential_extraction"
