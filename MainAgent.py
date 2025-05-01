@@ -36,7 +36,7 @@ class InputState():
 
 class OutputState():
     result: Annotated[str, string_reducer]
-    
+
     # insight graph states
     summary: Annotated[str, string_reducer]
     positives: Annotated[List[str], operator.add]
@@ -390,11 +390,11 @@ def route_from_memory(state:SuperGraphState):
     #     router_list.append(Send("chat", {"input": state["input"], "user_id": state["user_id"], "space_id": state["space_id"], "thread_id": state["thread_id"], "memory_summary": state["memory_summary"]}))
     router_list.append(Send("chat", {"input": state["input"], "user_id": state["user_id"], "space_id": state["space_id"], "thread_id": state["thread_id"], "memory_summary": state["memory_summary"]}))
     if "generate_insight" in intents:
-        router_list.append(Send("insight_generator", {"intent": ""}))
+        router_list.append(Send("insight_generator", {"input": state["input"], "user_id": state["user_id"], "space_id": state["space_id"], "thread_id": state["thread_id"], "memory_summary": state["memory_summary"]}))
     if "notion_documentor" in intents:
-        router_list.append(Send("notion_documentor", {"intent": ""}))
+        router_list.append(Send("notion_documentor", {"input": state["input"], "user_id": state["user_id"], "space_id": state["space_id"], "thread_id": state["thread_id"], "memory_summary": state["memory_summary"]}))
     if "notion_scheduler" in intents:
-        router_list.append(Send("notion_scheduler", {"intent": ""}))
+        router_list.append(Send("notion_scheduler", {"input": state["input"], "user_id": state["user_id"], "space_id": state["space_id"], "thread_id": state["thread_id"], "memory_summary": state["memory_summary"]}))
     # return [Send(intent, {"hello": "world"}) for intent in intents if intent in ["chat", "generate_insight", "notion_documentor", "notion_aggregator"]]
     return router_list
 

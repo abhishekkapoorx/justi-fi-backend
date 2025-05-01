@@ -1,8 +1,9 @@
+import requests
 from lib.llm import llm
 from lib.VectorStore import VectorStore
 from lib.embeddings import embeddings_e5_large, embeddings_mpnet_base
 from lib.api_keys import pinecone_api_key_anshul, pinecone_api_key_madhav
-from typing import List
+from typing import Dict, List
 
 import operator
 from typing import TypedDict, List, Annotated
@@ -158,6 +159,12 @@ def short_term_retrieval(query:str, thread_id: str) -> List[str]:
         
     return [doc.page_content for doc, _ in results]
 
+
+def getMessages(user_id: str, space_id: str) -> List[Dict[str, str]|None]:
+    res = requests.post(f"http://localhost:3000/api/spaces/{space_id}/space-messages", json={
+        "user_id": user_id,
+    })
+    return res.json()
 
 def long_term_retrieval(query:str, space_id: str) -> List[str]:
     """Retrieve important historical information from long-term memory.

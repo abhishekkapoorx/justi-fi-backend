@@ -1,7 +1,7 @@
 import operator
 from typing import Annotated, TypedDict, List, Dict, Any, Callable
 from langgraph.graph import StateGraph, START, END
-from tools import short_term_retrieval, long_term_retrieval, rag_law, rag_previous_cases
+from tools import getMessages, short_term_retrieval, long_term_retrieval, rag_law, rag_previous_cases
 from MemoryManager import string_reducer
 
 # -- State Schema Definition --
@@ -36,17 +36,15 @@ class InsightStateOutput(TypedDict):
 
 def summarize_case(state: InsightStateInput) -> InsightState:
     """
-    Summarize the entire case based on memory_summary and relevant context from memory stores.
+    Summarize the entire case based only on chat messages from short-term memory.
     
     This function:
-    1. Retrieves relevant short-term conversation history
-    2. Retrieves important historical case information
-    3. Gets relevant legal statutes and precedents
-    4. Generates a comprehensive summary with the LLM
+    1. Retrieves relevant conversation history from short-term memory
+    2. Generates a comprehensive summary with the LLM using only chat context
     
-    Returns the state updated with a detailed case summary
+    Returns the state updated with a detailed case summary based on chat messages
     """
-    from tools import short_term_retrieval, long_term_retrieval, rag_law, rag_previous_cases
+    from tools import short_term_retrieval
     from lib.llm import llm
     from langchain_core.messages import SystemMessage, HumanMessage
     import re
@@ -56,80 +54,52 @@ def summarize_case(state: InsightStateInput) -> InsightState:
     
     # Extract key information
     user_input = new_state.get("input", "")
-    thread_id = new_state.get("thread_id", "")
+    user_id = new_state.get("user_id", "")
     space_id = new_state.get("space_id", "")
     memory_summary = new_state.get("memory_summary", "")
     
     # Build a context-rich query from the user's input and memory summary
     query = user_input
-    if memory_summary:
-        # Extract the relevant part from memory_summary if it's in XML format
-        if "<MemoryUpdate" in memory_summary:
-            memory_extract = re.search(r"<UserQuery>(.*?)</UserQuery>", memory_summary)
-            if memory_extract:
-                memory_context = memory_extract.group(1).strip()
-                query = f"{user_input} {memory_context}"
-        else:
-            query = f"{user_input} {memory_summary}"
+    query = f"{user_input} {memory_summary}"
     
     try:
         print(f"Generating case summary for query: {query}")
         
-        # 1. Retrieve recent conversation history from short-term memory
-        short_term_history = short_term_retrieval(query, thread_id)
+        # Retrieve only chat messages from short-term memory
+        short_term_history = getMessages(user_id=user_id, space_id=space_id)
         
-        # 2. Retrieve important historical information from long-term memory
-        long_term_snippets = long_term_retrieval(query, space_id)
-        
-        # 3. Get relevant legal statutes and references
-        legal_statutes = rag_law(query)
-        
-        # 4. Get relevant previous cases
-        previous_cases = rag_previous_cases(query)
-        
-        # Format the retrieved information for the LLM
-        short_term_context = "\n\n".join(short_term_history[:5]) if short_term_history else "No recent conversation history available."
-        long_term_context = "\n\n".join(long_term_snippets[:5]) if long_term_snippets else "No historical case information available."
-        legal_context = "\n\n".join(legal_statutes[:3]) if legal_statutes else "No relevant legal statutes found."
-        case_context = "\n\n".join(previous_cases[:3]) if previous_cases else "No relevant previous cases found."
+        # Format the retrieved chat messages for the LLM
+        chat_context = short_term_history
         
         # Create a prompt for the LLM to generate a comprehensive case summary
         system_message = """
         You are a legal insight generator specialized in creating comprehensive case summaries.
-        Your task is to analyze all available information about a legal case and create a clear,
+        Your task is to analyze conversation history about a legal case and create a clear,
         structured summary that highlights the key aspects, legal issues, and relevant context.
         
         Focus on:
         1. The core legal questions and issues at stake
         2. Relevant facts and timeline of events
-        3. Applicable statutes, regulations, and legal principles
-        4. Similar precedent cases and their outcomes
-        5. Strengths and weaknesses of the legal position
-        6. Key stakeholders and their interests
+        3. Key legal principles mentioned in the conversation
+        4. Client's goals and concerns
+        5. Important dates, deadlines, or procedural steps mentioned
+        6. Any advice or strategies discussed
         
         Format your summary in a clear, structured manner with appropriate headings.
-        Cite specific statutes, regulations, and cases when referencing them.
+        Only use information directly mentioned in the conversation history.
         Be objective and balanced in your assessment.
         """
         
         user_message = f"""
-        Please generate a comprehensive summary of this legal case based on the following information:
+        Please generate a comprehensive summary of this legal case based on the following chat history:
         
         USER QUERY: {query}
         
-        RECENT CONVERSATION HISTORY:
-        {short_term_context}
+        CONVERSATION HISTORY:
+        {chat_context}
         
-        HISTORICAL CASE INFORMATION:
-        {long_term_context}
-        
-        RELEVANT LEGAL STATUTES:
-        {legal_context}
-        
-        PRECEDENT CASES:
-        {case_context}
-        
-        Provide a well-structured, comprehensive summary that captures the essence of this legal matter.
+        Provide a well-structured, comprehensive summary that captures the essence of this legal matter
+        based solely on the information in these conversations.
         """
         
         # Generate case summary using LLM
