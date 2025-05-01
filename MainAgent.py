@@ -4,20 +4,26 @@ from langgraph.graph import StateGraph, START, END, MessagesState
 from typing import Annotated, List, TypedDict
 from langgraph.types import Send
 
-from MemoryManager import build_memory_manager
+from MemoryManager import build_memory_manager, string_reducer
 
 
 class SuperGraphState(TypedDict):
     user_id: str
     thread_id: str
     space_id: str
-    query: str
+    input: str
+    user_id: str
+    space_id: str
+    thread_id: str
     output_message: str
     intents: List[str]
-    merged_context: str
+    memory_summary: Annotated[str, string_reducer]
 
 class InputState():
-    query: str
+    input: str
+    user_id: str
+    space_id: str
+    thread_id: str
 
 class OutputState():
     result: str
