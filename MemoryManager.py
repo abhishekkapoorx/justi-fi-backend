@@ -1,9 +1,7 @@
 import operator
-from typing import TypedDict, List, Dict, Any, Annotated, Optional
+from typing import TypedDict, List, Annotated
 from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
-from langchain_chroma import Chroma
-from langchain_pinecone import PineconeVectorStore
 import os
 import dotenv
 import uuid
@@ -14,6 +12,8 @@ from lib.embeddings import embeddings
 from lib.llm import llm
 from langchain_core.documents import Document
 from lib.api_keys import pinecone_api_key
+from langchain_core.messages import SystemMessage, HumanMessage
+from pydantic import BaseModel, Field
 
 dotenv.load_dotenv()
 
@@ -330,10 +330,6 @@ def persistence_writer(state: MemoryState) -> MemoryOutputState:
                 SystemMessage(content=system_message),
                 HumanMessage(content=user_message)
             ]
-            
-            # Use the structured output with messages
-            from langchain_core.messages import SystemMessage, HumanMessage
-            from pydantic import BaseModel, Field
             
             llm_response = llm.with_structured_output(Response).invoke(messages)
             

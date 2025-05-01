@@ -5,9 +5,9 @@ from typing import Annotated, List, TypedDict
 from langgraph.types import Send
 from ChatSubGraph import build_chat_subgraph
 from lib.llm import llm
-from typing import List
 from pydantic import BaseModel, Field
 from MemoryManager import build_memory_manager, string_reducer
+from langchain_core.messages import SystemMessage, HumanMessage
 
 
 class SuperGraphState(TypedDict):
@@ -49,10 +49,6 @@ def memory_manager(state):
 def intent_selector(state:SuperGraphState):
     """Analyze user input to determine their intentions and route accordingly.
     Uses LangChain's structured output for clean, type-safe parsing."""
-    from lib.llm import llm
-    from typing import List
-    from pydantic import BaseModel, Field
-    from langchain_core.messages import SystemMessage, HumanMessage
     
     newstate = state.copy()
     user_input = state.get("input", "")
