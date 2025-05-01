@@ -8,6 +8,7 @@ import os
 import dotenv
 import uuid
 from langgraph.graph.message import add_messages
+from langchain_core.messages import HumanMessage, SystemMessage
 from lib.VectorStore import VectorStore
 from lib.embeddings import embeddings
 from lib.llm import llm
@@ -115,8 +116,12 @@ def short_term_retrieval(state: MemoryState) -> MemoryState:
         Make it optimized for semantic search against recent conversation history.
         """
         
-        # Get clarified query from LLM with separated messages
-        llm_response = llm.invoke(system=system_message, user=user_message)
+        # Get clarified query from LLM with message objects
+        messages = [
+            SystemMessage(content=system_message),
+            HumanMessage(content=user_message)
+        ]
+        llm_response = llm.invoke(messages)
         clarified_query = llm_response.content if hasattr(llm_response, 'content') else str(llm_response)
         
         print(f"Original query: {new_state['input']}")
@@ -171,8 +176,12 @@ def long_term_retrieval(state: MemoryState) -> MemoryState:
             Make it optimized for semantic search against historical case records.
             """
             
-            # Get clarified query from LLM with separated messages
-            llm_response = llm.invoke(system=system_message, user=user_message)
+            # Get clarified query from LLM with message objects
+            messages = [
+                SystemMessage(content=system_message),
+                HumanMessage(content=user_message)
+            ]
+            llm_response = llm.invoke(messages)
             query_text = llm_response.content if hasattr(llm_response, 'content') else str(llm_response)
             print(f"Original query: {new_state['input']}")
             print(f"Long-term clarified query: {query_text}")
@@ -275,7 +284,7 @@ def persistence_writer(state: MemoryState) -> MemoryOutputState:
         uuids = [str(uuid.uuid4()) for _ in range(len(documents))]
         
         # Short-term: ChromaDB via LangChain - store the formatted memory
-        short_term_db.add_documents(documents=documents, ids = uuids)
+        short_term_db.add_documents(documents=documents, ids=uuids)
         
         # Extract essential information for long-term storage using LLM
         system_message = """
@@ -306,33 +315,47 @@ def persistence_writer(state: MemoryState) -> MemoryOutputState:
         
         Otherwise, format your response as:
             <Memory category="[category]">[extracted information]</Memory>
-            <!-- Include multiple Item tags as needed -->
+            <!-- Include multiple Memory tags as needed -->
         """
-        class Response(TypedDict):
-            """Joke to tell user."""
-            memories: Annotated[List[str], ..., 'List of different memories formated like <Memory category="[category]">[extracted information]</Memory>']
+        class Response(BaseModel):
+            """Response schema for memory extraction."""
+            memories: List[str] = Field(
+                description="List of different memories formatted like <Memory category=\"[category]\">[extracted information]</Memory>"
+            )
 
-
-
-        # Get extraction from LLM
+        # Get extraction from LLM using message objects instead of system/user parameters
         try:
-            llm_response = llm.with_structured_output(Response).invoke(system=system_message, user=user_message)
-            essential_content = llm_response
-            memories = essential_content.memories
-            
-            # Add extraction metadata
-            metadata["content_type"] = "essential_extraction"
-            
-            documents = [
-                Document(
-                    page_content=memories[i],
-                    metadata=metadata,
-                ) for i in memories
+            # Create message objects
+            messages = [
+                SystemMessage(content=system_message),
+                HumanMessage(content=user_message)
             ]
-            uuids = [str(uuid.uuid4()) for _ in range(len(documents))]
-            # Short-term: ChromaDB via LangChain - store the formatted memory
-            long_term_db.add_documents(documents=documents, ids = uuids)
-
+            
+            # Use the structured output with messages
+            from langchain_core.messages import SystemMessage, HumanMessage
+            from pydantic import BaseModel, Field
+            
+            llm_response = llm.with_structured_output(Response).invoke(messages)
+            
+            # Process each memory in the response
+            if hasattr(llm_response, 'memories') and llm_response.memories:
+                # Add extraction metadata
+                metadata["content_type"] = "essential_extraction"
+                
+                # Create documents for each memory
+                documents = [
+                    Document(
+                        page_content=memory,
+                        metadata=metadata,
+                    ) for memory in llm_response.memories
+                ]
+                
+                # Generate UUIDs for each document
+                uuids = [str(uuid.uuid4()) for _ in range(len(documents))]
+                
+                # Store in long-term DB
+                if documents:
+                    long_term_db.add_documents(documents=documents, ids=uuids)
 
         except Exception as e:
             print(f"Error extracting essential information: {e}, falling back to storing full memory")
@@ -370,31 +393,3 @@ def build_memory_manager():
 
     # Compile the graph with proper configuration
     return builder
-
-
-# -- Example Usage --
-if __name__ == "__main__":
-    # Build the memory graph
-    mem_graph = build_memory_manager().compile(checkpointer=memory_saver)
-
-    # Create a sample input state
-    state = {
-        "input": "List upcoming case deadlines.",
-        "user_id": "user123",
-        "space_id": "space456",
-        "thread_id": "thread789",
-        "timestamp": 1711795200,
-        "short_term_history": [],
-        "long_term_snippets": [],
-        "merged_context": [],
-    }
-
-    # Process the input and get the result
-    try:
-        result = mem_graph.invoke(state)
-        print("Merged Context:", result.get("merged_context"))
-    except Exception as e:
-        print(f"Error during graph execution: {e}")
-        import traceback
-
-        traceback.print_exc()

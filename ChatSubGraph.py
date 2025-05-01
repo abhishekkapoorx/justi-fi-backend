@@ -13,10 +13,10 @@ preceeding_store = VectorStore("cases", embeddings_mpnet_base, pinecone_api_key_
 
 class ChatSubgraphState(TypedDict):
     """State for the chat subgraph."""
-    user_id: str
-    thread_id: str
-    space_id: str
-    input: str
+    user_id: Annotated[str, string_reducer]
+    thread_id: Annotated[str, string_reducer]
+    space_id: Annotated[str, string_reducer]
+    input: Annotated[str, string_reducer]
     intents: List[str]
     chat_results: Annotated[str, string_reducer]
     memory_summary: Annotated[str, string_reducer]
@@ -27,10 +27,10 @@ class ChatSubgraphState(TypedDict):
 
 class ChatSubgraphInput(TypedDict):
     """Input for the chat subgraph."""
-    input: str
-    user_id: str
-    space_id: str
-    thread_id: str
+    input: Annotated[str, string_reducer]
+    user_id: Annotated[str, string_reducer]
+    space_id: Annotated[str, string_reducer]
+    thread_id: Annotated[str, string_reducer]
     memory_summary: Annotated[str, string_reducer]
 
 class ChatSubgraphOutput(TypedDict):
