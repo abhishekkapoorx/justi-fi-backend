@@ -27,9 +27,9 @@ short_term_db = short_term_db.getVectorStore()
 # Custom string reducer function (prefer first non-empty value)
 def string_reducer(a: str, b: str) -> str:
     """Return the first non-empty string, or empty string if both are empty."""
-    if a:
-        return a
-    return b
+    if b:
+        return b
+    return a
 
 
 # Custom max function with explicit signature
