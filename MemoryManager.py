@@ -76,7 +76,17 @@ memory_saver = MemorySaver()
 
 # -- Node Functions --
 def context_enricher(state: MemoryInputState) -> MemoryState:
-    """Enrich the state with additional context information."""
+    """Prepare and enrich the input state with context information.
+    
+    This tool initializes the memory retrieval process by ensuring all required
+    fields are properly set before retrieving information from memory stores.
+    
+    Args:
+        state: The initial state containing user input and identification fields
+        
+    Returns:
+        Enriched state with default values for any missing fields
+    """
     # Make a copy of the state to avoid mutating it
     new_state = state.copy()
 
@@ -89,7 +99,18 @@ def context_enricher(state: MemoryInputState) -> MemoryState:
 
 
 def short_term_retrieval(state: MemoryState) -> MemoryState:
-    """Retrieve relevant information from short-term memory."""
+    """Retrieve relevant recent conversation history from short-term memory.
+    
+    This tool optimizes the user's query to better match recent conversations,
+    then searches the short-term memory store for relevant context. It uses
+    semantic search to find the most similar previous exchanges.
+    
+    Args:
+        state: The current state with user input
+        
+    Returns:
+        Updated state with short_term_history field containing relevant recent conversations
+    """
     # Make a copy of the state to avoid mutating it
     new_state = state.copy()
     
@@ -147,7 +168,18 @@ def short_term_retrieval(state: MemoryState) -> MemoryState:
 
 
 def long_term_retrieval(state: MemoryState) -> MemoryState:
-    """Retrieve relevant information from long-term memory."""
+    """Retrieve important historical information from long-term memory.
+    
+    This tool searches the long-term memory store for significant legal facts,
+    case information, and other persistent knowledge that might be relevant to
+    the current query. It optimizes the query for historical retrieval.
+    
+    Args:
+        state: The current state with user input and optional clarified query
+        
+    Returns:
+        Updated state with long_term_snippets field containing relevant historical information
+    """
     # Make a copy of the state to avoid mutating it
     new_state = state.copy()
     
@@ -205,7 +237,18 @@ def long_term_retrieval(state: MemoryState) -> MemoryState:
 
 
 def context_merger(state: MemoryState) -> MemoryState:
-    """Combine information from different memory sources with formatted XML-style tags."""
+    """Combine short-term and long-term memory into a structured context.
+    
+    This tool formats retrieved memories from both short and long-term stores
+    into a consistent XML structure that preserves the source and type of each
+    memory fragment.
+    
+    Args:
+        state: The current state with retrieved short and long-term memories
+        
+    Returns:
+        Updated state with merged_context field containing structured memory information
+    """
     # Make a copy of the state to avoid mutating it
     new_state = state.copy()
     
@@ -227,7 +270,17 @@ def context_merger(state: MemoryState) -> MemoryState:
 
 
 def memory_updater(state: MemoryState) -> MemoryState:
-    """Update memory with new information in properly formatted XML structure."""
+    """Format the current interaction as a new memory for future retrieval.
+    
+    This tool takes the current user input and retrieved context, formats it
+    in a structured XML format, and prepares it for storage in the memory system.
+    
+    Args:
+        state: The current state with input and retrieved context
+        
+    Returns:
+        Updated state with new_memory and memory_summary fields
+    """
     # Make a copy of the state to avoid mutating it
     new_state = state.copy()
     
@@ -254,7 +307,18 @@ def memory_updater(state: MemoryState) -> MemoryState:
 
 
 def persistence_writer(state: MemoryState) -> MemoryOutputState:
-    """Write information to persistent storage with XML-formatted memory structure."""
+    """Store the current interaction in short-term and long-term memory stores.
+    
+    This tool writes the current interaction to both memory stores, with full context
+    going to short-term memory and essential legal information extracted for long-term 
+    storage. Uses LLM to identify and structure important legal information.
+    
+    Args:
+        state: The current state with memory_summary and new_memory
+        
+    Returns:
+        Updated state after writing to memory stores
+    """
     # Make a copy of the state to avoid mutating it
     new_state = state.copy()
     

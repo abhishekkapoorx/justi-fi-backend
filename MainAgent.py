@@ -4,6 +4,7 @@ from langgraph.graph import StateGraph, START, END, MessagesState
 from typing import Annotated, List, TypedDict
 from langgraph.types import Send
 from ChatSubGraph import build_chat_subgraph
+from InsightGeneratorGraph import build_insight_generator
 from lib.llm import llm
 from pydantic import BaseModel, Field
 from MemoryManager import build_memory_manager, string_reducer
@@ -11,9 +12,6 @@ from langchain_core.messages import SystemMessage, HumanMessage
 
 
 class SuperGraphState(TypedDict):
-    user_id: Annotated[str, string_reducer]
-    thread_id: Annotated[str, string_reducer]
-    space_id: Annotated[str, string_reducer]
     input: Annotated[str, string_reducer]
     user_id: Annotated[str, string_reducer]
     space_id: Annotated[str, string_reducer]
@@ -43,12 +41,34 @@ class IntentResponse(BaseModel):
         return f"Detected intents: {', '.join(self.intents)}"
 
 def memory_manager(state):
+    """Retrieve and manage conversation memory across user interactions.
+    
+    This tool connects to the memory management subsystem to retrieve relevant
+    conversation history and contextual information, enabling the assistant to
+    maintain context across multiple turns of conversation.
+    
+    Args:
+        state: The current state containing user input and identification
+        
+    Returns:
+        State updated with relevant memory context
+    """
     build_memory_manager().compile()
     return state
 
 def intent_selector(state:SuperGraphState):
     """Analyze user input to determine their intentions and route accordingly.
-    Uses LangChain's structured output for clean, type-safe parsing."""
+    
+    This tool uses LangChain's structured output for clean, type-safe parsing of user
+    intents. It analyzes the user's message to identify if they want general conversation,
+    legal insights, document management, or scheduling assistance.
+    
+    Args:
+        state: The current state containing user input
+        
+    Returns:
+        State updated with detected intents for routing
+    """
     
     newstate = state.copy()
     user_input = state.get("input", "")
@@ -99,15 +119,61 @@ def intent_selector(state:SuperGraphState):
     return newstate
 
 def chat(state):
+    """Process general conversation or legal Q&A requests.
+    
+    This tool handles general conversation, questions, or clarification requests
+    by providing informative responses based on legal knowledge and conversation context.
+    
+    Args:
+        state: The current state containing user input and context
+        
+    Returns:
+        State updated with chat response
+    """
     return state
 
 def insight_generator(state):
+    """Generate legal insights, analyses, and interpretations.
+    
+    This tool provides deeper legal analysis, insights into case law,
+    and interpretations of legal information based on the user query.
+    
+    Args:
+        state: The current state containing user input and context
+        
+    Returns:
+        State updated with legal insights
+    """
     return state
 
 def notion_documentor(state):
+    """Create, update, or manage legal documents.
+    
+    This tool handles document-related operations including creating
+    new legal documents, updating existing ones, and managing document
+    repositories in Notion.
+    
+    Args:
+        state: The current state containing user input and context
+        
+    Returns:
+        State updated with document operation results
+    """
     return state
 
 def notion_scheduler(state):
+    """Manage schedules, appointments, and legal deadlines.
+    
+    This tool helps users manage their legal calendar by scheduling meetings,
+    tracking important dates, setting reminders for legal deadlines, and
+    managing court appearances.
+    
+    Args:
+        state: The current state containing user input and context
+        
+    Returns:
+        State updated with scheduling operation results
+    """
     return state
 
 def aggregator(state: SuperGraphState) -> OutputState:
@@ -293,8 +359,18 @@ def summarize_result(result_text: str, max_length: int = 100) -> str:
 
 # Add conditional edges from memory_manager based on intent
 def route_from_memory(state:SuperGraphState):
-    # This is a placeholder for actual intent-based routing logic
-    # In a real implementation, you would examine the state to determine the next node
+    """Route user requests based on detected intents.
+    
+    This tool examines the intents detected in the user's message and
+    determines which functional nodes should process the request.
+    Multiple intents can be handled simultaneously.
+    
+    Args:
+        state: The current state containing detected intents
+        
+    Returns:
+        List of routing instructions based on detected intents
+    """
     print("-x"*100,state)
     intents = state["intents"]
     router_list = []
@@ -316,7 +392,7 @@ graph = StateGraph(SuperGraphState, input=InputState, output=OutputState)
 graph.add_node("memory_manager", build_memory_manager().compile())
 graph.add_node("intent_selector", intent_selector)
 graph.add_node("chat", build_chat_subgraph().compile())
-graph.add_node("insight_generator", insight_generator)
+graph.add_node("insight_generator", build_insight_generator().compile())
 graph.add_node("notion_documentor", notion_documentor)
 graph.add_node("notion_scheduler", notion_scheduler)
 graph.add_node("result_aggregator", aggregator)

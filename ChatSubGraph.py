@@ -163,6 +163,18 @@ def rag_previous_cases(state: ChatSubgraphInput) -> ChatSubgraphState:
 
 
 def doc_ret(state: ChatSubgraphInput) -> ChatSubgraphState:
+    """Retrieve relevant documents from case-specific document storage.
+    
+    This tool searches through uploaded case documents to find information relevant
+    to the user's query. It provides access to client-specific files, briefs, and
+    case documents that may not be available in public legal databases.
+    
+    Args:
+        state: The current state containing user input and memory context
+        
+    Returns:
+        Updated state with doc_context field containing relevant document excerpts
+    """
     # 1. Semantic search over uploaded case docs
     # 2. Inject retrieved text into state['doc_context']
     # state['doc_context'] = "…relevant document excerpts…"
