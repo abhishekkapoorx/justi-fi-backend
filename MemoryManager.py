@@ -142,16 +142,17 @@ def short_term_retrieval(state: MemoryState) -> MemoryState:
             SystemMessage(content=system_message),
             HumanMessage(content=user_message)
         ]
-        llm_response = llm.invoke(messages)
-        clarified_query = llm_response.content if hasattr(llm_response, 'content') else str(llm_response)
-        
+        # llm_response = llm.invoke(messages)
+        # clarified_query = llm_response.content if hasattr(llm_response, 'content') else str(llm_response)
+        clarified_query = new_state["input"]
+
         print(f"Original query: {new_state['input']}")
         print(f"Clarified query: {clarified_query}")
         
         # Query ChromaDB for recent memories using LangChain integration with clarified query
         filter_dict = {"thread_id": tid}
         results = short_term_db.similarity_search_with_score(
-            query=clarified_query, k=10, filter=filter_dict
+            query=clarified_query, k=7, filter=filter_dict
         )
         
         # Extract documents and their scores
@@ -213,8 +214,10 @@ def long_term_retrieval(state: MemoryState) -> MemoryState:
                 SystemMessage(content=system_message),
                 HumanMessage(content=user_message)
             ]
-            llm_response = llm.invoke(messages)
-            query_text = llm_response.content if hasattr(llm_response, 'content') else str(llm_response)
+            # llm_response = llm.invoke(messages)
+            # query_text = llm_response.content if hasattr(llm_response, 'content') else str(llm_response)
+
+            query_text = new_state["input"]
             print(f"Original query: {new_state['input']}")
             print(f"Long-term clarified query: {query_text}")
         

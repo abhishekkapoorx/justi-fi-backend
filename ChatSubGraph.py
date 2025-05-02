@@ -72,7 +72,8 @@ def rag_law(state: ChatSubgraphInput) -> ChatSubgraphState:
                 """)
             ]
             
-            enhanced_query = llm.invoke(messages).content
+            # enhanced_query = llm.invoke(messages).content
+            enhanced_query = user_query
             print(f"Enhanced query: {enhanced_query}")
             query = enhanced_query
         except Exception as e:
@@ -132,9 +133,9 @@ def rag_previous_cases(state: ChatSubgraphInput) -> ChatSubgraphState:
                 """)
             ]
             
-            enhanced_query = llm.invoke(messages).content
-            print(f"Enhanced query: {enhanced_query}")
-            query = enhanced_query
+            # enhanced_query = llm.invoke(messages).content
+            print(f"Enhanced query: {user_query}")
+            query = user_query
         except Exception as e:
             print(f"Error creating enhanced query: {e}. Using original query.")
             # Fallback to simple concatenation if LLM enhancement fails
