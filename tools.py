@@ -6,12 +6,13 @@ from lib.api_keys import pinecone_api_key_anshul, pinecone_api_key_madhav
 from typing import Dict, List
 
 import operator
-from typing import TypedDict, List, Annotated
+from typing import TypedDict, List, Annotated, Optional, Any, Dict
 from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
 import os
 import dotenv
 import uuid
+import asyncio
 from langgraph.graph.message import add_messages
 from langchain_core.messages import HumanMessage, SystemMessage
 from lib.VectorStore import VectorStore
@@ -95,10 +96,6 @@ def rag_previous_cases(query: str) -> List[str]:
     return law_context
 
 
-
-
-
-
 def short_term_retrieval(query:str, thread_id: str) -> List[str]:
     """Retrieve relevant recent conversation history from short-term memory.
     
@@ -166,6 +163,266 @@ def getMessages(user_id: str, space_id: str) -> List[Dict[str, str]|None]:
     })
     return res.json()
 
+class DocumentResponse(BaseModel):
+    document_title: str = Field(
+        description="Complete title of the legal document (e.g., 'MOTION FOR SUMMARY JUDGMENT', 'COMPLAINT FOR DAMAGES AND INJUNCTIVE RELIEF')"
+    )
+    document_type: str = Field(
+        description="Specific type of legal filing (e.g., Motion, Brief, Complaint, Answer, Petition, Memorandum, Order, Affidavit, Declaration)"
+    )
+    document_content: str = Field(
+        description="Properly formatted content following court rules, including caption, case number, parties, jurisdiction statement, numbered paragraphs, legal citations, prayer for relief, and signature blocks"
+    )
+    court_name: str = Field(
+        description="Full name of the court where document will be filed (e.g., 'UNITED STATES DISTRICT COURT FOR THE SOUTHERN DISTRICT OF NEW YORK')"
+    )
+    case_number: Optional[str] = Field(
+        description="Official case/docket number in proper format (e.g., 'Case No. 2:21-cv-01234-JRC')",
+        default=None,
+    )
+    filing_party: str = Field(
+        description="Party submitting this document (e.g., 'Plaintiff', 'Defendant', 'Petitioner')"
+    )
+    opposing_party: Optional[str] = Field(
+        description="Party opposing the filing party", default=None
+    )
+    certificate_of_service: Optional[str] = Field(
+        description="Text certifying service of document to other parties", default=None
+    )
+    next_steps: Optional[List[str]] = Field(
+        description="Procedural steps required after filing (e.g., serving process, scheduling hearing)",
+        default=None,
+    )
+def saveInNotion(response: DocumentResponse):
+    """
+    Save a legal document to Notion using direct API requests.
+    
+    Args:
+        response: A DocumentResponse object containing the document details
+    
+    Returns:
+        Dictionary with the save operation results
+    """
+    try:
+        import os
+        import requests
+        
+        # Load Notion API key from environment or use the fixed value
+        NOTION_KEY = os.environ.get("NOTION_API_KEY", "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")
+        
+        # Notion API headers
+        NOTION_HEADERS = {
+            "Authorization": f"Bearer {NOTION_KEY}",
+            "Content-Type": "application/json",
+            "Notion-Version": "2022-06-28",
+        }
+        
+        # Step 1: Find a parent page to add the document to
+        search_params = {"filter": {"value": "page", "property": "object"}}
+        
+        search_response = requests.post(
+            "https://api.notion.com/v1/search", 
+            json=search_params, 
+            headers=NOTION_HEADERS
+        )
+        
+        if search_response.status_code != 200:
+            return {
+                "success": False,
+                "error": f"Failed to find parent page: {search_response.status_code}",
+                "details": search_response.text
+            }
+        
+        search_results = search_response.json().get("results", [])
+        if not search_results:
+            return {
+                "success": False,
+                "error": "No parent pages found in Notion workspace"
+            }
+        
+        # Get the ID of the first page
+        parent_page_id = search_results[0]["id"]
+        
+        # Format document title and content
+        title = response.document_title
+        
+        # Step 2: Create a new page with only title property (avoiding custom properties that might not exist)
+        page_properties = {
+            "title": {"title": [{"type": "text", "text": {"content": title}}]}
+        }
+        
+        # Format content as blocks
+        blocks = []
+        
+        # Title block
+        blocks.append({
+            "object": "block",
+            "type": "heading_1",
+            "heading_1": {
+                "rich_text": [{"type": "text", "text": {"content": response.document_title}}]
+            }
+        })
+        
+        # Document type
+        blocks.append({
+            "object": "block",
+            "type": "paragraph",
+            "paragraph": {
+                "rich_text": [{"type": "text", "text": {"content": f"Document Type: {response.document_type}"}}]
+            }
+        })
+        
+        # Court Information section
+        blocks.append({
+            "object": "block",
+            "type": "heading_2",
+            "heading_2": {
+                "rich_text": [{"type": "text", "text": {"content": "Court Information"}}]
+            }
+        })
+        blocks.append({
+            "object": "block",
+            "type": "paragraph",
+            "paragraph": {
+                "rich_text": [{"type": "text", "text": {"content": response.court_name}}]
+            }
+        })
+        blocks.append({
+            "object": "block",
+            "type": "paragraph",
+            "paragraph": {
+                "rich_text": [{"type": "text", "text": {"content": f"Case Number: {response.case_number if response.case_number else 'TBD'}"}}]
+            }
+        })
+        
+        # Parties section
+        blocks.append({
+            "object": "block",
+            "type": "heading_2",
+            "heading_2": {
+                "rich_text": [{"type": "text", "text": {"content": "Parties"}}]
+            }
+        })
+        blocks.append({
+            "object": "block",
+            "type": "paragraph",
+            "paragraph": {
+                "rich_text": [{"type": "text", "text": {"content": f"Filing Party: {response.filing_party}"}}]
+            }
+        })
+        if response.opposing_party:
+            blocks.append({
+                "object": "block",
+                "type": "paragraph",
+                "paragraph": {
+                    "rich_text": [{"type": "text", "text": {"content": f"Opposing Party: {response.opposing_party}"}}]
+                }
+            })
+        
+        # Document Content section
+        blocks.append({
+            "object": "block",
+            "type": "heading_2",
+            "heading_2": {
+                "rich_text": [{"type": "text", "text": {"content": "Document Content"}}]
+            }
+        })
+        
+        # Split the document content into paragraphs and add each paragraph as a block
+        content_paragraphs = response.document_content.split('\n\n')
+        for paragraph in content_paragraphs:
+            if paragraph.strip():
+                blocks.append({
+                    "object": "block",
+                    "type": "paragraph",
+                    "paragraph": {
+                        "rich_text": [{"type": "text", "text": {"content": paragraph.strip()}}]
+                    }
+                })
+        
+        # Certificate of Service section (if available)
+        if response.certificate_of_service:
+            blocks.append({
+                "object": "block",
+                "type": "heading_2",
+                "heading_2": {
+                    "rich_text": [{"type": "text", "text": {"content": "Certificate of Service"}}]
+                }
+            })
+            blocks.append({
+                "object": "block",
+                "type": "paragraph",
+                "paragraph": {
+                    "rich_text": [{"type": "text", "text": {"content": response.certificate_of_service}}]
+                }
+            })
+        
+        # Next Steps section
+        blocks.append({
+            "object": "block",
+            "type": "heading_2",
+            "heading_2": {
+                "rich_text": [{"type": "text", "text": {"content": "Next Steps"}}]
+            }
+        })
+        
+        if response.next_steps:
+            for step in response.next_steps:
+                blocks.append({
+                    "object": "block",
+                    "type": "bulleted_list_item",
+                    "bulleted_list_item": {
+                        "rich_text": [{"type": "text", "text": {"content": step}}]
+                    }
+                })
+        else:
+            blocks.append({
+                "object": "block",
+                "type": "paragraph",
+                "paragraph": {
+                    "rich_text": [{"type": "text", "text": {"content": "No specific next steps identified."}}]
+                }
+            })
+        
+        # Create the request body
+        create_page_body = {
+            "parent": {"page_id": parent_page_id},
+            "properties": page_properties,
+            "children": blocks
+        }
+        
+        # Step 3: Send the API request to create the page
+        create_response = requests.post(
+            "https://api.notion.com/v1/pages",
+            json=create_page_body,
+            headers=NOTION_HEADERS
+        )
+        
+        if create_response.status_code in [200, 201]:
+            result = create_response.json()
+            print(f"Document saved to Notion: {title}")
+            return {
+                "success": True,
+                "page_id": result.get("id"),
+                "url": result.get("url"),
+                "message": "Document successfully saved to Notion"
+            }
+        else:
+            return {
+                "success": False,
+                "error": f"API Error: {create_response.status_code}",
+                "details": create_response.text
+            }
+            
+    except Exception as e:
+        print(f"Error saving document to Notion: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e),
+            "message": "Failed to save document to Notion"
+        }
+
+
 def long_term_retrieval(query:str, space_id: str) -> List[str]:
     """Retrieve important historical information from long-term memory.
     
@@ -224,8 +481,6 @@ def long_term_retrieval(query:str, space_id: str) -> List[str]:
         print(f"Error retrieving from long-term memory: {e}")
         
     return [doc.page_content for doc in results]
-
-
 
 
 tools = [rag_law, rag_previous_cases]

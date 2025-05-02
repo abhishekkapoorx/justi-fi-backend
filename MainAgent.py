@@ -3,7 +3,7 @@ from langchain_groq import ChatGroq
 from langgraph.graph import StateGraph, START, END, MessagesState
 
 # from langgraph.checkpoint.memory import MemorySaver
-from typing import Annotated, Any, Dict, List, TypedDict
+from typing import Annotated, Any, Dict, List, TypedDict, Optional
 from langgraph.types import Send
 from ChatSubGraph import build_chat_subgraph
 from InsightGeneratorGraph import build_insight_generator
@@ -11,6 +11,9 @@ from lib.llm import llm
 from pydantic import BaseModel, Field
 from MemoryManager import build_memory_manager, string_reducer
 from langchain_core.messages import SystemMessage, HumanMessage
+import re
+
+from tools import saveInNotion
 
 
 class SuperGraphState(TypedDict):
@@ -28,6 +31,8 @@ class SuperGraphState(TypedDict):
     positives: Annotated[List[str], operator.add]
     negatives: Annotated[List[Dict[str, Any]], operator.add]
 
+    document_generated: Annotated[bool, operator.add]
+
 
 class InputState(TypedDict):
     input: Annotated[str, string_reducer]
@@ -44,6 +49,8 @@ class OutputState(TypedDict):
     positives: Annotated[List[str], operator.add]
     negatives: Annotated[List[Dict[str, Any]], operator.add]
 
+    document_generated: Annotated[bool, operator.add]
+
 
 class IntentResponse(BaseModel):
     """Response schema for intent classification."""
@@ -55,6 +62,38 @@ class IntentResponse(BaseModel):
     def __str__(self) -> str:
         """String representation of the intents for logging."""
         return f"Detected intents: {', '.join(self.intents)}"
+
+
+class DocumentResponse(BaseModel):
+    document_title: str = Field(
+        description="Complete title of the legal document (e.g., 'MOTION FOR SUMMARY JUDGMENT', 'COMPLAINT FOR DAMAGES AND INJUNCTIVE RELIEF')"
+    )
+    document_type: str = Field(
+        description="Specific type of legal filing (e.g., Motion, Brief, Complaint, Answer, Petition, Memorandum, Order, Affidavit, Declaration)"
+    )
+    document_content: str = Field(
+        description="Properly formatted content following court rules, including caption, case number, parties, jurisdiction statement, numbered paragraphs, legal citations, prayer for relief, and signature blocks"
+    )
+    court_name: str = Field(
+        description="Full name of the court where document will be filed (e.g., 'UNITED STATES DISTRICT COURT FOR THE SOUTHERN DISTRICT OF NEW YORK')"
+    )
+    case_number: Optional[str] = Field(
+        description="Official case/docket number in proper format (e.g., 'Case No. 2:21-cv-01234-JRC')",
+        default=None,
+    )
+    filing_party: str = Field(
+        description="Party submitting this document (e.g., 'Plaintiff', 'Defendant', 'Petitioner')"
+    )
+    opposing_party: Optional[str] = Field(
+        description="Party opposing the filing party", default=None
+    )
+    certificate_of_service: Optional[str] = Field(
+        description="Text certifying service of document to other parties", default=None
+    )
+    next_steps: Optional[List[str]] = Field(
+        description="Procedural steps required after filing (e.g., serving process, scheduling hearing)",
+        default=None,
+    )
 
 
 def memory_manager(state):
@@ -177,7 +216,7 @@ def insight_generator(state):
     return state
 
 
-async def notion_documentor(state: SuperGraphState):
+def notion_documentor(state: SuperGraphState):
     """Create, update, or manage legal documents.
 
     This tool handles document-related operations including creating
@@ -191,13 +230,14 @@ async def notion_documentor(state: SuperGraphState):
         State updated with document operation results
     """
     new_state = state.copy()
-    
+
     # Refine user input using LLM for better document processing
-    user_input = state['input']
+    user_input = state["input"]
 
     # Create prompts for better understanding the document request
     messages = [
-        SystemMessage(content="""You are a legal document preparation assistant. 
+        SystemMessage(
+            content="""You are a legal document preparation assistant. 
         Your task is to analyze the user's request and identify key details needed for document creation:
         - Document type (motion, brief, complaint, etc.)
         - Key parties involved
@@ -205,8 +245,11 @@ async def notion_documentor(state: SuperGraphState):
         - Specific formatting requirements
         - Deadline information (if any)
         
-        Format the information clearly to prepare for document creation."""),
-        HumanMessage(content=f"User request: {user_input}\n\nPlease extract and organize the key information needed for proper document preparation.")
+        Format the information clearly to prepare for document creation."""
+        ),
+        HumanMessage(
+            content=f"User request: {user_input}\n\nPlease extract and organize the key information needed for proper document preparation."
+        ),
     ]
 
     # Refine the input with the LLM
@@ -247,7 +290,19 @@ async def notion_documentor(state: SuperGraphState):
             content=f"User input: {refined_input}\n\nPlease create or modify the requested legal document following proper court filing standards."
         ),
     ]
-    
+
+    # Use the LLM to process the document request with structured output
+
+    # Create structured output with our Pydantic model
+    structured_doc_llm = llm.with_structured_output(DocumentResponse)
+    response = structured_doc_llm.invoke(messages)
+
+    function_result = saveInNotion(response)
+
+
+    new_state["document_generated"] = function_result["success"]
+    print(f"Document created: {response.document_title}")
+
     return new_state
 
 
@@ -276,9 +331,6 @@ def aggregator(state: SuperGraphState) -> OutputState:
     3. Creates a structured response that helps the user understand all system activities
     4. Returns a unified result in the OutputState format
     """
-    from lib.llm import llm
-    from langchain_core.messages import SystemMessage, HumanMessage
-    import re
 
     # Initialize the output state
     output = {"result": ""}
@@ -544,7 +596,6 @@ def route_from_memory(state: SuperGraphState):
     return router_list
 
 
-
 def input_mapper(state: InputState) -> SuperGraphState:
     new_state = state.copy()
     new_state["intents"] = []
@@ -561,6 +612,7 @@ def input_mapper(state: InputState) -> SuperGraphState:
     new_state["space_id"] = state["space_id"]
     new_state["input"] = state["input"]
     return new_state
+
 
 graph = StateGraph(SuperGraphState, input=InputState, output=OutputState)
 graph.add_node("input_mapper", input_mapper)
